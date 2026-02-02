@@ -14,7 +14,6 @@ services:
       - evolution_instances:/evolution/instances
     networks:
       - evolution-net
-      - dokploy-network
     env_file:
       - .env
     expose:
@@ -39,9 +38,6 @@ services:
       - evolution_redis:/data
     networks:
       evolution-net:
-        aliases:
-          - evolution-redis
-      dokploy-network:
         aliases:
           - evolution-redis
     expose:
@@ -69,9 +65,6 @@ services:
       evolution-net:
         aliases:
           - postgres
-      dokploy-network:
-        aliases:
-          - postgres
     expose:
       - "5432"
 
@@ -84,5 +77,3 @@ networks:
   evolution-net:
     name: evolution-net
     driver: bridge
-  dokploy-network:
-    external: true
