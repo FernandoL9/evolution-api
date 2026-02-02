@@ -9,7 +9,7 @@ services:
       - redis
       - evolution-postgres
     ports:
-      - "127.0.0.1:9080:9080"
+      - "9080:9080"
     volumes:
       - evolution_instances:/evolution/instances
     networks:
@@ -25,7 +25,7 @@ services:
     image: evoapicloud/evolution-manager:latest
     restart: always
     ports:
-      - "3001:80"
+      - "3000:80"
     networks:
       - evolution-net
 
@@ -66,8 +66,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - evolution-net
-      - dokploy-network
+      evolution-net:
+        aliases:
+          - postgres
+      dokploy-network:
+        aliases:
+          - postgres
     expose:
       - "5432"
 
