@@ -251,6 +251,8 @@ export class BaileysStartupService extends ChannelStartupService {
   private endSession = false;
   private logBaileys = this.configService.get<Log>('LOG').BAILEYS;
   private eventProcessingQueue: Promise<void> = Promise.resolve();
+  private isConnecting = false;
+  private connectionPromise: Promise<WASocket> | null = null;
 
   // Cache TTL constants (in seconds)
   private readonly MESSAGE_CACHE_TTL_SECONDS = 5 * 60; // 5 minutes - avoid duplicate message processing
@@ -721,25 +723,49 @@ export class BaileysStartupService extends ChannelStartupService {
   }
 
   public async connectToWhatsapp(number?: string): Promise<WASocket> {
-    try {
-      this.loadChatwoot();
-      this.loadSettings();
-      this.loadWebhook();
-      this.loadProxy();
-
-      // Remontar o messageProcessor para garantir que está funcionando após reconexão
-      this.messageProcessor.mount({
-        onMessageReceive: this.messageHandle['messages.upsert'].bind(this),
-      });
-
-      return await this.createClient(number);
-    } catch (error) {
-      this.logger.error(error);
-      throw new InternalServerErrorException(error?.toString());
+    // Proteção contra múltiplas chamadas simultâneas
+    if (this.isConnecting && this.connectionPromise) {
+      this.logger.warn(`Connection already in progress for instance "${this.instanceName}", waiting for existing connection...`);
+      return await this.connectionPromise;
     }
+
+    if (this.client && this.client.user) {
+      this.logger.warn(`Instance "${this.instanceName}" is already connected, skipping connection attempt`);
+      return this.client;
+    }
+
+    this.isConnecting = true;
+    this.connectionPromise = (async () => {
+      try {
+        this.loadChatwoot();
+        this.loadSettings();
+        this.loadWebhook();
+        this.loadProxy();
+
+        // Remontar o messageProcessor para garantir que está funcionando após reconexão
+        this.messageProcessor.mount({
+          onMessageReceive: this.messageHandle['messages.upsert'].bind(this),
+        });
+
+        const client = await this.createClient(number);
+        return client;
+      } catch (error) {
+        this.logger.error(error);
+        throw new InternalServerErrorException(error?.toString());
+      } finally {
+        this.isConnecting = false;
+        this.connectionPromise = null;
+      }
+    })();
+
+    return await this.connectionPromise;
   }
 
   public async reloadConnection(): Promise<WASocket> {
+    // Resetar flags de conexão antes de recarregar
+    this.isConnecting = false;
+    this.connectionPromise = null;
+    
     try {
       return await this.createClient(this.phoneNumber);
     } catch (error) {

@@ -271,6 +271,14 @@ export class WAMonitoringService {
   }
 
   private async setInstance(instanceData: InstanceDto) {
+    // Verificar se a instância já existe para evitar duplicações
+    if (this.waInstances[instanceData.instanceName]) {
+      this.logger.warn(
+        `Instance "${instanceData.instanceName}" already exists, skipping duplicate initialization`,
+      );
+      return;
+    }
+
     const instance = channelController.init(instanceData, {
       configService: this.configService,
       eventEmitter: this.eventEmitter,
@@ -293,6 +301,9 @@ export class WAMonitoringService {
       ownerJid: instanceData.ownerJid,
     });
 
+    // Armazenar a instância antes de conectar para evitar duplicações
+    this.waInstances[instanceData.instanceName] = instance;
+
     if (instanceData.connectionStatus === 'open' || instanceData.connectionStatus === 'connecting') {
       this.logger.info(
         `Auto-connecting instance "${instanceData.instanceName}" (status: ${instanceData.connectionStatus})`,
@@ -303,8 +314,6 @@ export class WAMonitoringService {
         `Skipping auto-connect for instance "${instanceData.instanceName}" (status: ${instanceData.connectionStatus || 'close'})`,
       );
     }
-
-    this.waInstances[instanceData.instanceName] = instance;
   }
 
   private async loadInstancesFromRedis() {
